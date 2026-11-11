@@ -100,13 +100,11 @@ async function activateInner(ctx: vscode.ExtensionContext, _status: vscode.Statu
   };
   const clientOptions: LanguageClientOptions = {
     documentSelector: [
-      { language: 'yaml', pattern: '**/.gitlab-ci*.{yml,yaml}' },        // canonical .gitlab-ci.yml
-      { language: 'yaml', pattern: '**/*.gitlab-ci*.{yml,yaml}' },       // anything-gitlab-ci-anything.yml
-      { language: 'yaml', pattern: '**/.gitlab/ci/**/*.{yml,yaml}' },    // .gitlab/ci tree
+      { language: 'yaml' },
     ],
     synchronize: {
       configurationSection: 'gitlabCi',
-      fileEvents: vscode.workspace.createFileSystemWatcher('**/*gitlab-ci*.{yml,yaml}'),
+      fileEvents: vscode.workspace.createFileSystemWatcher('**/*.{yml,yaml}'),
     },
     outputChannel: logChannel,
   };
@@ -165,6 +163,26 @@ async function activateInner(ctx: vscode.ExtensionContext, _status: vscode.Statu
       if (!host) return;
       await promptForToken(host);
     }),
+    vscode.commands.registerCommand('gitlabCi.addFile', async (arg?: unknown) => {
+      const uri = uriFromArg(arg);
+      const document = uri
+        ? await vscode.workspace.openTextDocument(vscode.Uri.parse(uri))
+        : vscode.window.activeTextEditor?.document;
+      if (!document || !isYamlDocument(document)) {
+        vscode.window.showWarningMessage('Open or select a YAML file first.');
+        return;
+      }
+      const config = vscode.workspace.getConfiguration('gitlabCi');
+      const files = config.get<string[]>('additionalFiles', []);
+      const relativePath = vscode.workspace.asRelativePath(document.uri, false).replaceAll('\\', '/');
+      if (!files.includes(relativePath)) {
+        const target = vscode.workspace.workspaceFolders?.length
+          ? vscode.ConfigurationTarget.Workspace
+          : vscode.ConfigurationTarget.Global;
+        await config.update('additionalFiles', [...files, relativePath], target);
+      }
+      vscode.window.showInformationMessage(`GitLab CI support enabled for ${relativePath}.`);
+    }),
     vscode.commands.registerCommand('gitlabCi.showGraph', async (arg?: unknown) => {
       try {
         // Accepts: vscode.Uri (from explorer/editor context menu/title bar),
@@ -175,7 +193,7 @@ async function activateInner(ctx: vscode.ExtensionContext, _status: vscode.Statu
         if (!uri) uri = vscode.window.activeTextEditor?.document.uri.toString();
         log(`[showGraph] invoked with uri=${uri ?? 'undefined'}`);
         if (!uri) {
-          vscode.window.showWarningMessage('Open or select a .gitlab-ci.yml file first.');
+          vscode.window.showWarningMessage('Open or select a GitLab CI YAML file first.');
           return;
         }
         await showGraph(ctx, uri);
@@ -297,6 +315,10 @@ function uriFromArg(arg: unknown): string | undefined {
   if (arg instanceof vscode.Uri) return arg.toString();
   if (typeof arg === 'string') return arg;
   return vscode.window.activeTextEditor?.document.uri.toString();
+}
+
+function isYamlDocument(document: vscode.TextDocument): boolean {
+  return document.languageId === 'yaml' || /\.ya?ml$/i.test(document.fileName);
 }
 
 interface CiLintResponse { valid: boolean; errors?: string[]; warnings?: string[] }

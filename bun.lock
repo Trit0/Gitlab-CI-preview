@@ -22,7 +22,7 @@
     },
     "packages/client": {
       "name": "gitlab-ci-preview",
-      "version": "0.5.0",
+      "version": "1.0.0",
       "dependencies": {
         "@gitlab-ci-preview/shared": "workspace:*",
         "vscode-languageclient": "^10.1.0",

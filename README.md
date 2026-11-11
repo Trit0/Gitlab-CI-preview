@@ -20,8 +20,9 @@ A VS Code extension that visualizes `.gitlab-ci.yml` pipelines with full `includ
 
 ## Usage
 
-1. Open a `.gitlab-ci.yml` file (or any YAML file whose name matches `gitlab-ci`).
+1. Open a `.gitlab-ci.yml` file, a YAML file whose content looks like GitLab CI, or any YAML file.
 2. Run **GitLab CI: Show Pipeline Graph** from the Command Palette, the editor title bar, the file's context menu, or with `Ctrl+Alt+G` / `Cmd+Alt+G`.
+3. If automatic detection misses the file, run **GitLab CI: Use This YAML File**. This registers the workspace-relative path for future sessions.
 
 Use the **Filter jobs…** box in the graph header to dim everything except matching jobs — handy for large pipelines. Switch between the **Stages** (column-per-stage) and **Needs** (dependency/DAG) layouts with the toggle in the header.
 
@@ -33,6 +34,7 @@ Use the **Filter jobs…** box in the graph header to dim everything except matc
 | `GitLab CI: Show Merged Pipeline (resolved YAML)` | Open the fully-resolved pipeline — includes/extends/`default:` merged — as one read-only YAML document. |
 | `GitLab CI: Validate with GitLab CI Lint API` | Authoritative server-side validation via the project's `/ci/lint` endpoint (needs a token for the host). |
 | `GitLab CI: Open File in GitLab` | Open the current file on its GitLab project/branch in the browser. |
+| `GitLab CI: Use This YAML File` | Register a YAML file as GitLab CI when its filename/content is not recognizable. |
 | `GitLab CI: Clear Include Cache` | Drop the cached HTTP responses for remote/project/component includes. |
 | `GitLab CI: Configure Token for Host…` | Set a personal access token for a given GitLab host. |
 
@@ -44,6 +46,7 @@ Use the **Filter jobs…** box in the graph header to dim everything except matc
 | `gitlabCi.defaultHost` | `gitlab.com` | GitLab host used for project/component API lookups. |
 | `gitlabCi.cacheTtlMinutes` | `15` | Cache TTL in minutes for branch refs. Pinned SHA/tag refs are cached longer. |
 | `gitlabCi.fetchTimeoutSeconds` | `10` | Timeout for fetching remote/project/component includes before giving up. |
+| `gitlabCi.additionalFiles` | `[]` | Workspace-relative YAML paths explicitly registered as GitLab CI files. |
 
 When the server hits a 401 fetching a private include, the extension prompts for a token and stores it in `gitlabCi.tokens` (global settings).
 

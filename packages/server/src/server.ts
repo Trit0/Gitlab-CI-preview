@@ -35,6 +35,8 @@ import {
   type MigrateOnlyExceptResult,
   type SetTokensParams,
 } from '@gitlab-ci-preview/shared';
+import * as path from 'node:path';
+import { URI } from 'vscode-uri';
 import { resolvePipeline } from './resolve.js';
 import { buildMergedPipeline } from './features/mergePipeline.js';
 import { parseYaml } from './parser.js';
@@ -70,8 +72,10 @@ interface Settings {
   defaultHost?: string;
   cacheTtlMinutes?: number;
   fetchTimeoutSeconds?: number;
+  additionalFiles?: string[];
 }
 
+let additionalFiles: string[] = [];
 connection.onInitialize((params): InitializeResult => {
   workspaceFolders = (params.workspaceFolders ?? []).map((f) => f.uri);
   return {
@@ -94,7 +98,10 @@ connection.onInitialized(() => {
     connection.sendNotification(NEEDS_AUTH_NOTIFICATION, { host });
   });
   connection.workspace.getConfiguration('gitlabCi').then((cfg: Settings | null) => {
-    if (cfg) applySettings(cfg);
+    if (cfg) {
+      applySettings(cfg);
+      for (const doc of documents.all()) updateDocument(doc);
+    }
   }).catch((e: unknown) => {
     connection.console.error(`failed to load gitlabCi configuration (cache TTL falls back to defaults): ${(e as Error).message}`);
   });
@@ -111,7 +118,7 @@ connection.onInitialized(() => {
 
 connection.onDidChangeConfiguration((change) => {
   applySettings((change.settings?.gitlabCi ?? {}) as Settings);
-  for (const doc of documents.all()) scheduleResolve(doc);
+  for (const doc of documents.all()) updateDocument(doc);
 });
 
 function applySettings(cfg: Settings) {
@@ -121,15 +128,53 @@ function applySettings(cfg: Settings) {
     cacheTtlMs: (cfg.cacheTtlMinutes ?? 15) * 60 * 1000,
     fetchTimeoutMs: Math.max(1, cfg.fetchTimeoutSeconds ?? 10) * 1000,
   });
+  additionalFiles = cfg.additionalFiles ?? [];
 }
 
-function isGitlabCiFile(uri: string): boolean {
-  return /gitlab-ci.*\.ya?ml$/i.test(uri) || /\/\.gitlab\/ci\/.*\.ya?ml$/i.test(uri);
+function isConfiguredFile(uri: string): boolean {
+  if (additionalFiles.includes(uri)) return true;
+  const filePath = URI.parse(uri).fsPath;
+  return workspaceFolders.some((folder) => {
+    const relative = path.relative(URI.parse(folder).fsPath, filePath).replaceAll('\\', '/');
+    return additionalFiles.includes(relative) || additionalFiles.includes(`./${relative}`);
+  });
 }
 
-documents.onDidOpen((e) => { if (isGitlabCiFile(e.document.uri)) scheduleResolve(e.document); });
-documents.onDidChangeContent((e) => { if (isGitlabCiFile(e.document.uri)) scheduleResolve(e.document); });
-documents.onDidClose((e) => { connection.sendDiagnostics({ uri: e.document.uri, diagnostics: [] }); });
+function looksLikeGitlabCi(text: string): boolean {
+  return /^(?:stages|workflow|include|default|variables|image|services|before_script|after_script|cache|interruptible|retry|timeout|resource_group|pages):\s*(?:$|[^\s#])/m.test(text)
+    || /^\s*(?:script|trigger|rules|needs|extends|stage):\s*(?:$|[^\s#])/m.test(text);
+}
+
+function isGitlabCiFile(uri: string, text: string): boolean {
+  return /gitlab-ci.*\.ya?ml$/i.test(uri)
+    || /\/\.gitlab\/ci\/.*\.ya?ml$/i.test(uri)
+    || isConfiguredFile(uri)
+    || looksLikeGitlabCi(text);
+}
+
+function updateDocument(doc: TextDocument) {
+  if (isGitlabCiFile(doc.uri, doc.getText())) {
+    scheduleResolve(doc);
+    return;
+  }
+  const pending = debouncers.get(doc.uri);
+  if (pending) {
+    clearTimeout(pending);
+    debouncers.delete(doc.uri);
+  }
+  modelCache.delete(doc.uri);
+  connection.sendDiagnostics({ uri: doc.uri, diagnostics: [] });
+}
+
+documents.onDidOpen((e) => updateDocument(e.document));
+documents.onDidChangeContent((e) => updateDocument(e.document));
+documents.onDidClose((e) => {
+  const pending = debouncers.get(e.document.uri);
+  if (pending) clearTimeout(pending);
+  debouncers.delete(e.document.uri);
+  modelCache.delete(e.document.uri);
+  connection.sendDiagnostics({ uri: e.document.uri, diagnostics: [] });
+});
 
 function scheduleResolve(doc: TextDocument) {
   const prev = debouncers.get(doc.uri);

@@ -1,3 +1,6 @@
+include:
+  local: /ci/generic-ci.yml
+
 stages: [build, test]
 
 .setup:

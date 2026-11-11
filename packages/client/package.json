@@ -22,6 +22,7 @@
       { "command": "gitlabCi.openInGitLab", "title": "GitLab CI: Open File in GitLab" },
       { "command": "gitlabCi.clearIncludeCache", "title": "GitLab CI: Clear Include Cache" },
       { "command": "gitlabCi.setTokenForHost", "title": "GitLab CI: Configure Token for Host…" },
+      { "command": "gitlabCi.addFile", "title": "GitLab CI: Use This YAML File" },
       { "command": "gitlabCi.migrateOnlyExcept", "title": "Convert only/except to rules (GitLab CI)" }
     ],
     "keybindings": [
@@ -29,21 +30,21 @@
         "command": "gitlabCi.showGraph",
         "key": "ctrl+alt+g",
         "mac": "cmd+alt+g",
-        "when": "editorLangId == yaml && resourceFilename =~ /gitlab-ci/i"
+        "when": "editorLangId == yaml"
       }
     ],
     "menus": {
       "explorer/context": [
         {
           "command": "gitlabCi.showGraph",
-          "when": "resourceExtname =~ /\\.ya?ml$/ && resourceFilename =~ /gitlab-ci/i",
+          "when": "resourceExtname =~ /\\.ya?ml$/",
           "group": "navigation@99"
         }
       ],
       "editor/context": [
         {
           "command": "gitlabCi.showGraph",
-          "when": "resourceExtname =~ /\\.ya?ml$/ && resourceFilename =~ /gitlab-ci/i",
+          "when": "resourceExtname =~ /\\.ya?ml$/",
           "group": "navigation@99"
         }
       ],
@@ -57,21 +58,25 @@
       "editor/title/context": [
         {
           "command": "gitlabCi.showGraph",
-          "when": "resourceExtname =~ /\\.ya?ml$/ && resourceFilename =~ /gitlab-ci/i"
+          "when": "resourceExtname =~ /\\.ya?ml$/"
         }
       ],
       "commandPalette": [
         {
           "command": "gitlabCi.showMergedPipeline",
-          "when": "resourceExtname =~ /\\.ya?ml$/ && resourceFilename =~ /gitlab-ci/i"
+          "when": "resourceExtname =~ /\\.ya?ml$/"
         },
         {
           "command": "gitlabCi.lintWithGitLab",
-          "when": "resourceExtname =~ /\\.ya?ml$/ && resourceFilename =~ /gitlab-ci/i"
+          "when": "resourceExtname =~ /\\.ya?ml$/"
         },
         {
           "command": "gitlabCi.openInGitLab",
-          "when": "resourceExtname =~ /\\.ya?ml$/ && resourceFilename =~ /gitlab-ci/i"
+          "when": "resourceExtname =~ /\\.ya?ml$/"
+        },
+        {
+          "command": "gitlabCi.addFile",
+          "when": "resourceExtname =~ /\\.ya?ml$/"
         }
       ]
     },
@@ -129,6 +134,12 @@
           "default": 10,
           "minimum": 1,
           "description": "Timeout in seconds for fetching remote/project/component includes before giving up."
+        },
+        "gitlabCi.additionalFiles": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Workspace-relative YAML paths to treat as GitLab CI files when automatic detection cannot identify them."
         }
       }
     }

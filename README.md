@@ -15,6 +15,7 @@ A VS Code extension that visualizes `.gitlab-ci.yml` pipelines with full `includ
   - `component` — CI/CD components, including `spec.inputs` interpolation
 - **Schema validation & diagnostics** — Ajv-backed validation against the GitLab CI JSON schema, surfaced as editor diagnostics.
 - **Hover, go-to-definition, completion, code lens** — standard LSP features over the merged pipeline model (jobs, stages, `extends`, `needs`, `dependencies`).
+- **Cross-file completion** — secondary YAML files in the workspace reuse jobs and stages declared by the root `.gitlab-ci.yml`, including resolved includes.
 - **Inline editing** — rename stages or edit job specs from the graph; edits are applied as `TextEdit`s back to the source YAML.
 - **Auth-aware HTTP cache** — per-host personal access tokens for private GitLab instances; pinned refs cached longer than branch refs. Prompts on 401.
 

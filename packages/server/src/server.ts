@@ -36,6 +36,7 @@ import {
   type SetTokensParams,
 } from '@gitlab-ci-preview/shared';
 import * as path from 'node:path';
+import * as fs from 'node:fs/promises';
 import { URI } from 'vscode-uri';
 import { resolvePipeline } from './resolve.js';
 import { buildMergedPipeline } from './features/mergePipeline.js';
@@ -213,11 +214,54 @@ connection.onDefinition((p) => {
   return definition(model, doc, p.position);
 });
 
+function isPrimaryPipelineUri(uri: string): boolean {
+  return /\/\.gitlab-ci\.ya?ml$/i.test(uri);
+}
+
+async function workspaceRootModelFor(uri: string): Promise<PipelineModel | null> {
+  const filePath = URI.parse(uri).fsPath;
+  for (const folder of workspaceFolders) {
+    const folderPath = URI.parse(folder).fsPath;
+    const relative = path.relative(folderPath, filePath);
+    if (relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) continue;
+
+    for (const name of ['.gitlab-ci.yml', '.gitlab-ci.yaml']) {
+      const rootUri = URI.file(path.join(folderPath, name)).toString();
+      const cached = modelCache.get(rootUri);
+      if (cached) return cached;
+      try {
+        const text = await fs.readFile(URI.parse(rootUri).fsPath, 'utf8');
+        const model = await resolvePipeline(rootUri, text, {
+          baseUri: rootUri,
+          workspaceFolders,
+          readOpenDocument: (openUri) => documents.get(openUri)?.getText() ?? null,
+        });
+        modelCache.set(rootUri, model);
+        for (const [sourceUri, sourceText] of Object.entries(model.includedSources)) {
+          includedTexts.set(sourceUri, sourceText);
+        }
+        return model;
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
+          connection.console.error(`completion root resolve failed for ${rootUri}: ${(e as Error).message}`);
+        }
+      }
+    }
+  }
+  return null;
+}
+
+async function completionModelFor(uri: string): Promise<PipelineModel | null> {
+  const current = modelCache.get(uri);
+  if (isPrimaryPipelineUri(uri)) return current ?? workspaceRootModelFor(uri);
+  return await workspaceRootModelFor(uri) ?? current ?? null;
+}
+
 connection.onCompletion((p) => {
-  const model = modelCache.get(p.textDocument.uri);
   const doc = documents.get(p.textDocument.uri);
-  if (!model || !doc) return [];
-  return completion(model, doc, p.position);
+  if (!doc) return [];
+  return completionModelFor(p.textDocument.uri)
+    .then((model) => model ? completion(model, doc, p.position) : []);
 });
 
 connection.onCodeLens((p) => codeLenses(p.textDocument.uri));
@@ -233,8 +277,6 @@ async function resolveModelForUri(uri: string): Promise<PipelineModel | null> {
   // on a yaml that doesn't match our documentSelector). Read from disk and resolve
   // directly without caching as an active doc.
   try {
-    const fs = await import('node:fs/promises');
-    const { URI } = await import('vscode-uri');
     const fsPath = URI.parse(uri).fsPath;
     const text = await fs.readFile(fsPath, 'utf8');
     const model = await resolvePipeline(uri, text, {
